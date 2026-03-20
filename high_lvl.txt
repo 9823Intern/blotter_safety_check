@@ -1,0 +1,9 @@
+1. Check for bad trades with mappings
+1b. Check those bad trades for potentially caveats and edge cases
+// Maybe use a hashmap??? idk
+
+Flat positions:  ALLOWED: ALL
+Long Positions:  ALLOWED: BUY/SELL LONG
+Short Positions: ALLOWED: CLOSE/SELL SHORT
+
+RETURN TYPE either list or df  : Return bad trades in cmd line with format "LINE# | TICKER | TRADE_TYPE | # SHARES_ORDERED"

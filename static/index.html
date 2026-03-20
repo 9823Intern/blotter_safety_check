@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Blotter Checker</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --border: #2a2d3a;
+      --accent: #6c63ff;
+      --accent-hover: #5a52e0;
+      --text: #e4e4e7;
+      --text-muted: #8b8d97;
+      --success: #22c55e;
+      --error: #ef4444;
+      --radius: 12px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      padding: 40px 20px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 720px;
+    }
+
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      margin-bottom: 32px;
+    }
+
+    .drop-zone {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 40px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      background: var(--surface);
+      margin-bottom: 16px;
+      position: relative;
+    }
+
+    .drop-zone:hover,
+    .drop-zone.drag-over {
+      border-color: var(--accent);
+      background: rgba(108, 99, 255, 0.06);
+    }
+
+    .drop-zone .icon {
+      font-size: 2rem;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .drop-zone .label {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+    }
+
+    .drop-zone .label strong {
+      color: var(--accent);
+      cursor: pointer;
+    }
+
+    .file-name {
+      margin-top: 10px;
+      font-size: 0.85rem;
+      color: var(--success);
+      min-height: 1.2em;
+    }
+
+    .drop-zone input[type="file"] {
+      display: none;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    @media (max-width: 560px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    button.generate {
+      width: 100%;
+      padding: 14px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #fff;
+      background: var(--accent);
+      border: none;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: background 0.2s, opacity 0.2s;
+    }
+
+    button.generate:hover { background: var(--accent-hover); }
+    button.generate:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .output-section {
+      margin-top: 32px;
+      display: none;
+    }
+
+    .output-section.visible { display: block; }
+
+    .output-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .output-header h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+    }
+
+    button.download {
+      padding: 8px 16px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent);
+      background: transparent;
+      border: 1.5px solid var(--accent);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    button.download:hover {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .output-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      font-family: 'SFMono-Regular', 'Fira Code', 'Consolas', monospace;
+      font-size: 0.85rem;
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 480px;
+      overflow-y: auto;
+    }
+
+    .output-box.error-text { color: var(--error); }
+
+    .spinner {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 2.5px solid rgba(255,255,255,.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Blotter Checker</h1>
+    <p class="subtitle">Upload your Blotter and Positions files to check for problematic trades.</p>
+
+    <div class="grid">
+      <div class="drop-zone" id="blotterZone">
+        <span class="icon">📄</span>
+        <div class="label">Drop <strong>Blotter</strong> file here or <strong>browse</strong></div>
+        <div class="file-name" id="blotterName"></div>
+        <input type="file" id="blotterInput" accept=".xls,.xlsx,.csv" />
+      </div>
+      <div class="drop-zone" id="positionsZone">
+        <span class="icon">📊</span>
+        <div class="label">Drop <strong>Positions</strong> file here or <strong>browse</strong></div>
+        <div class="file-name" id="positionsName"></div>
+        <input type="file" id="positionsInput" accept=".xls,.xlsx,.csv" />
+      </div>
+    </div>
+
+    <button class="generate" id="generateBtn" disabled>Generate Report</button>
+
+    <div class="output-section" id="outputSection">
+      <div class="output-header">
+        <h2>Report Output</h2>
+        <button class="download" id="downloadBtn">Download .txt</button>
+      </div>
+      <div class="output-box" id="outputBox"></div>
+    </div>
+  </div>
+
+  <script>
+    const blotterZone = document.getElementById('blotterZone');
+    const positionsZone = document.getElementById('positionsZone');
+    const blotterInput = document.getElementById('blotterInput');
+    const positionsInput = document.getElementById('positionsInput');
+    const blotterName = document.getElementById('blotterName');
+    const positionsName = document.getElementById('positionsName');
+    const generateBtn = document.getElementById('generateBtn');
+    const outputSection = document.getElementById('outputSection');
+    const outputBox = document.getElementById('outputBox');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    let blotterFile = null;
+    let positionsFile = null;
+    let lastOutput = '';
+
+    function setupDropZone(zone, input, nameEl, setFile) {
+      zone.addEventListener('click', () => input.click());
+
+      zone.addEventListener('dragover', e => {
+        e.preventDefault();
+        zone.classList.add('drag-over');
+      });
+
+      zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+
+      zone.addEventListener('drop', e => {
+        e.preventDefault();
+        zone.classList.remove('drag-over');
+        if (e.dataTransfer.files.length) {
+          const file = e.dataTransfer.files[0];
+          setFile(file);
+          nameEl.textContent = file.name;
+          updateBtn();
+        }
+      });
+
+      input.addEventListener('change', () => {
+        if (input.files.length) {
+          const file = input.files[0];
+          setFile(file);
+          nameEl.textContent = file.name;
+          updateBtn();
+        }
+      });
+    }
+
+    setupDropZone(blotterZone, blotterInput, blotterName, f => blotterFile = f);
+    setupDropZone(positionsZone, positionsInput, positionsName, f => positionsFile = f);
+
+    function updateBtn() {
+      generateBtn.disabled = !(blotterFile && positionsFile);
+    }
+
+    generateBtn.addEventListener('click', async () => {
+      if (!blotterFile || !positionsFile) return;
+
+      generateBtn.disabled = true;
+      generateBtn.innerHTML = '<span class="spinner"></span>Running...';
+      outputSection.classList.remove('visible');
+      outputBox.classList.remove('error-text');
+
+      const form = new FormData();
+      form.append('blotter', blotterFile);
+      form.append('positions', positionsFile);
+
+      try {
+        const res = await fetch('/run', { method: 'POST', body: form });
+        const data = await res.json();
+
+        if (data.error) {
+          outputBox.textContent = data.error;
+          outputBox.classList.add('error-text');
+        } else {
+          outputBox.textContent = data.output;
+          lastOutput = data.output;
+        }
+      } catch (err) {
+        outputBox.textContent = 'Network error: ' + err.message;
+        outputBox.classList.add('error-text');
+      }
+
+      outputSection.classList.add('visible');
+      generateBtn.innerHTML = 'Generate Report';
+      generateBtn.disabled = false;
+    });
+
+    downloadBtn.addEventListener('click', () => {
+      if (!lastOutput) return;
+      const blob = new Blob([lastOutput], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'blotter_report.txt';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  </script>
+</body>
+</html>
