@@ -1,4 +1,4 @@
-flask
-pandas
-openpyxl
-xlrd
+flask>=3.0
+pandas>=2.0
+python-calamine>=0.2
+pytz>=2024.1
