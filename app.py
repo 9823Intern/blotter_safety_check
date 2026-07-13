@@ -134,5 +134,103 @@ def check():
     })
 
 
+@app.route("/crosses", methods=["POST"])
+def crosses():
+    try:
+        skiprows = int(request.form.get("skiprows", new_main.BLOTTER_SKIPROWS))
+    except (TypeError, ValueError):
+        skiprows = new_main.BLOTTER_SKIPROWS
+
+    # Build the blotter dataframe from either an uploaded file or pasted text.
+    source = None
+    try:
+        uploaded = request.files.get("file")
+        pasted = request.form.get("pasted", "").strip()
+
+        if uploaded and uploaded.filename:
+            blotter_df = read_blotter_from_upload(
+                uploaded.read(), uploaded.filename, skiprows
+            )
+            source = uploaded.filename
+        elif pasted:
+            blotter_df = read_blotter_from_paste(pasted, skiprows)
+            source = "pasted grid"
+        else:
+            return jsonify({"ok": False, "error": "No blotter file or pasted grid provided."}), 400
+    except Exception as exc:  # noqa: BLE001 - surface parse errors to the UI
+        return jsonify({
+            "ok": False,
+            "error": f"Could not read the blotter input: {exc}",
+            "detail": traceback.format_exc(),
+        }), 400
+
+    # Crossing-trade balance check needs only the blotter (no positions file).
+    try:
+        imbalances = new_main.analyze_crosses(blotter_df, skiprows=skiprows)
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({
+            "ok": False,
+            "error": f"Crossing-trade analysis failed: {exc}",
+            "detail": traceback.format_exc(),
+        }), 500
+
+    return jsonify({
+        "ok": True,
+        "source": source,
+        "skiprows": skiprows,
+        "summary": {"total": len(imbalances)},
+        "imbalances": imbalances,
+    })
+
+
+@app.route("/accounts", methods=["POST"])
+def accounts():
+    try:
+        skiprows = int(request.form.get("skiprows", new_main.BLOTTER_SKIPROWS))
+    except (TypeError, ValueError):
+        skiprows = new_main.BLOTTER_SKIPROWS
+
+    # Build the blotter dataframe from either an uploaded file or pasted text.
+    source = None
+    try:
+        uploaded = request.files.get("file")
+        pasted = request.form.get("pasted", "").strip()
+
+        if uploaded and uploaded.filename:
+            blotter_df = read_blotter_from_upload(
+                uploaded.read(), uploaded.filename, skiprows
+            )
+            source = uploaded.filename
+        elif pasted:
+            blotter_df = read_blotter_from_paste(pasted, skiprows)
+            source = "pasted grid"
+        else:
+            return jsonify({"ok": False, "error": "No blotter file or pasted grid provided."}), 400
+    except Exception as exc:  # noqa: BLE001 - surface parse errors to the UI
+        return jsonify({
+            "ok": False,
+            "error": f"Could not read the blotter input: {exc}",
+            "detail": traceback.format_exc(),
+        }), 400
+
+    # Fund/broker/account check needs only the blotter (no positions file).
+    try:
+        issues = new_main.analyze_fund_broker_account(blotter_df, skiprows=skiprows)
+    except Exception as exc:  # noqa: BLE001
+        return jsonify({
+            "ok": False,
+            "error": f"Fund/broker/account analysis failed: {exc}",
+            "detail": traceback.format_exc(),
+        }), 500
+
+    return jsonify({
+        "ok": True,
+        "source": source,
+        "skiprows": skiprows,
+        "summary": {"total": len(issues)},
+        "issues": issues,
+    })
+
+
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    app.run(host="127.0.0.1", port=5051, debug=True)

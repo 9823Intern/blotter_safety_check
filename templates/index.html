@@ -80,10 +80,11 @@
       margin-top: 18px;
     }
     label.field { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 0.9rem; }
-    input[type="number"] {
+    input[type="number"], input[type="text"] {
       width: 80px; background: var(--panel-2); border: 1px solid var(--border);
       border-radius: 8px; color: var(--text); padding: 7px 9px; font-size: 0.9rem;
     }
+    input[type="text"] { width: 130px; }
 
     button {
       background: var(--accent-2);
@@ -134,15 +135,34 @@
     .badge.long { background: #134e4a; color: var(--ok); }
     .badge.short { background: #4a1f2a; color: var(--danger); }
     .badge.none { background: #334155; color: var(--muted); }
-
+    .badge.option { background: #4a3f1f; color: #fbbf24; }
     .hidden { display: none; }
     .empty { color: var(--ok); font-weight: 600; padding: 14px 0; }
+
+    .tabs {
+      display: flex; gap: 6px; margin-bottom: 22px;
+      border-bottom: 1px solid var(--border);
+    }
+    .tab {
+      background: transparent; color: var(--muted);
+      border: none; border-bottom: 2px solid transparent;
+      border-radius: 0; padding: 10px 16px; font-size: 0.95rem;
+      font-weight: 600; cursor: pointer;
+    }
+    .tab:hover { color: var(--text); background: transparent; }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
   </style>
 </head>
 <body>
   <div class="wrap">
     <h1>Blotter Safety Check</h1>
-    <p class="sub">Drag &amp; drop a blotter file or paste an Excel grid to run the trade-error check.</p>
+    <p id="sub" class="sub">Drag &amp; drop a blotter file or paste an Excel grid to run the trade-error check.</p>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="errors">Trade Errors</button>
+      <button class="tab" data-tab="crosses">Crossing Trades</button>
+      <button class="tab" data-tab="accounts">Fund / Broker / Account</button>
+    </div>
 
     <div class="card">
       <div id="dropzone" class="dropzone">
@@ -185,8 +205,52 @@
     const results = document.getElementById("results");
     const summary = document.getElementById("summary");
     const resultBody = document.getElementById("resultBody");
+    const subEl = document.getElementById("sub");
+    const tabs = document.querySelectorAll(".tab");
 
     let selectedFile = null;
+    let activeTab = "errors";
+
+    const TAB_CONFIG = {
+      errors: {
+        endpoint: "/check",
+        sub: "Drag & drop a blotter file or paste an Excel grid to run the trade-error check.",
+        render: renderResults,
+        running: "Running check...",
+        button: "Run check",
+      },
+      crosses: {
+        endpoint: "/crosses",
+        sub: "Check that crossing trades net to zero shares per ticker. Drop a blotter file or paste an Excel grid.",
+        render: renderCrosses,
+        running: "Checking crossing trades...",
+        button: "Run check",
+      },
+      accounts: {
+        endpoint: "/accounts",
+        sub: "Check fund (col S), broker (col L) and account (col T) combinations on every blotter row. Drop a blotter file or paste an Excel grid.",
+        render: renderAccounts,
+        running: "Checking fund/broker/account combinations...",
+        button: "Run check",
+      },
+    };
+
+    function updateActiveTabUi() {
+      const cfg = TAB_CONFIG[activeTab];
+      subEl.textContent = cfg.sub;
+      runBtn.textContent = cfg.button;
+    }
+
+    tabs.forEach((tab) =>
+      tab.addEventListener("click", () => {
+        activeTab = tab.dataset.tab;
+        tabs.forEach((t) => t.classList.toggle("active", t === tab));
+        updateActiveTabUi();
+        results.classList.add("hidden");
+        setStatus("", "");
+      })
+    );
+    updateActiveTabUi();
 
     function setFile(file) {
       selectedFile = file;
@@ -239,6 +303,10 @@
       return `<span class="badge ${cls}">${side || "None"}</span>`;
     }
 
+    function optionBadge() {
+      return `<span class="badge option">Option</span>`;
+    }
+
     function renderTable(rows, danger) {
       if (!rows.length) return "";
       const body = rows
@@ -249,7 +317,7 @@
             <td class="mono">${e.Ticker ?? ""}</td>
             <td class="mono">${e.Requested_Trade ?? ""}</td>
             <td class="mono">${e["share count"] ?? ""}</td>
-            <td>${e.has_position ? sideBadge(e.holdings_side) + " " + (e.holdings_qty ?? "") : sideBadge(e.Position)}</td>
+            <td>${e.has_position ? sideBadge(e.holdings_side) + " " + (e.holdings_qty ?? "") : sideBadge(e.Position)}${e.is_option ? " " + optionBadge() : ""}</td>
             <td>${e.reason ?? ""}</td>
           </tr>`
         )
@@ -287,6 +355,81 @@
       resultBody.innerHTML = html;
     }
 
+    function renderCrosses(data) {
+      results.classList.remove("hidden");
+      const s = data.summary;
+      summary.innerHTML = `
+        <div class="stat ${s.total ? "danger" : ""}"><div class="n">${s.total}</div><div class="l">Imbalanced tickers</div></div>`;
+
+      let html = `<div class="sub">Source: <span class="mono">${data.source}</span> &middot; skiprows=${data.skiprows}</div>`;
+      if (!s.total) {
+        html += `<div class="empty">All crossing trades net to zero per ticker.</div>`;
+      } else {
+        html += `<div class="group-title danger">Tickers whose crossing trades do NOT net to zero</div>`;
+        const body = data.imbalances
+          .map(
+            (e) => `
+            <tr class="danger">
+              <td class="mono">${e.Ticker ?? ""}</td>
+              <td class="mono">${e.net_shares}</td>
+              <td class="mono">${e.trade_count}</td>
+            </tr>`
+          )
+          .join("");
+        html += `
+          <table>
+            <thead>
+              <tr><th>Ticker</th><th>Net Shares</th><th>Crossing Trades</th></tr>
+            </thead>
+            <tbody>${body}</tbody>
+          </table>`;
+      }
+      resultBody.innerHTML = html;
+    }
+
+    function renderAccounts(data) {
+      results.classList.remove("hidden");
+      const s = data.summary;
+      summary.innerHTML = `
+        <div class="stat ${s.total ? "danger" : ""}"><div class="n">${s.total}</div><div class="l">Issues</div></div>`;
+
+      let html = `<div class="sub">Source: <span class="mono">${escapeHtml(data.source)}</span> &middot; skiprows=${escapeHtml(data.skiprows)}</div>`;
+      if (!s.total) {
+        html += `<div class="empty">All fund/broker/account combinations are valid.</div>`;
+      } else {
+        html += `<div class="group-title danger">Problematic fund/broker/account combinations</div>`;
+        const body = data.issues
+          .map(
+            (e) => `
+            <tr class="danger">
+              <td class="mono">${escapeHtml(e.line)}</td>
+              <td class="mono">${escapeHtml(e.fund)}</td>
+              <td class="mono">${escapeHtml(e.broker)}</td>
+              <td class="mono">${escapeHtml(e.account)}</td>
+              <td>${escapeHtml(e.issue)}</td>
+            </tr>`
+          )
+          .join("");
+        html += `
+          <table>
+            <thead>
+              <tr><th>Line</th><th>Fund (S)</th><th>Broker (L)</th><th>Account (T)</th><th>Issue</th></tr>
+            </thead>
+            <tbody>${body}</tbody>
+          </table>`;
+      }
+      resultBody.innerHTML = html;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
     runBtn.addEventListener("click", async () => {
       const pasted = pasteArea.value.trim();
       if (!selectedFile && !pasted) {
@@ -298,17 +441,18 @@
       if (selectedFile) fd.append("file", selectedFile);
       else fd.append("pasted", pasted);
 
+      const cfg = TAB_CONFIG[activeTab];
       runBtn.disabled = true;
-      setStatus("Running check...", "");
+      setStatus(cfg.running, "");
       try {
-        const resp = await fetch("/check", { method: "POST", body: fd });
+        const resp = await fetch(cfg.endpoint, { method: "POST", body: fd });
         const data = await resp.json();
         if (!data.ok) {
           setStatus("Error: " + data.error, "err");
           results.classList.add("hidden");
         } else {
           setStatus("Done.", "ok");
-          renderResults(data);
+          cfg.render(data);
         }
       } catch (err) {
         setStatus("Request failed: " + err, "err");

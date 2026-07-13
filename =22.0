@@ -1,0 +1,11 @@
+Requirement already satisfied: pyarrow in C:\Users\EnnTurn\GitHub\env\Lib\site-packages (20.0.0)
+Collecting pyarrow
+  Downloading pyarrow-24.0.0-cp313-cp313-win_amd64.whl.metadata (3.0 kB)
+Downloading pyarrow-24.0.0-cp313-cp313-win_amd64.whl (27.3 MB)
+   ---------------------------------------- 27.3/27.3 MB 21.4 MB/s  0:00:01
+Installing collected packages: pyarrow
+  Attempting uninstall: pyarrow
+    Found existing installation: pyarrow 20.0.0
+    Uninstalling pyarrow-20.0.0:
+      Successfully uninstalled pyarrow-20.0.0
+Successfully installed pyarrow-24.0.0
